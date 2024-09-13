@@ -1,3 +1,9 @@
+#[derive(Debug, PartialEq, Eq)]
+enum Token {
+    Ident,
+    Number,
+}
+
 fn whitespace(mut input: &str) -> &str {
     while matches!(input.chars().next(), Some(' ')) {
         let mut chars = input.chars();
@@ -7,7 +13,7 @@ fn whitespace(mut input: &str) -> &str {
     input
 }
 
-fn number(mut input: &str) -> &str {
+fn number(mut input: &str) -> (&str, Option<Token>) {
     if matches!(
         input.chars().next(),
         Some(_x @ ('-' | '+' | '.' | '0'..='9'))
@@ -17,11 +23,13 @@ fn number(mut input: &str) -> &str {
             chars.next();
             input = chars.as_str();
         }
+        (input, Some(Token::Number))
+    } else {
+        (input, None)
     }
-    input
 }
 
-fn ident(mut input: &str) -> &str {
+fn ident(mut input: &str) -> (&str, Option<Token>) {
     if matches!(input.chars().next(), Some(_x @ ('a'..='z' | 'A'..='Z'))) {
         while matches!(
             input.chars().next(),
@@ -31,17 +39,38 @@ fn ident(mut input: &str) -> &str {
             chars.next();
             input = chars.as_str();
         }
+        (input, Some(Token::Ident))
+    } else {
+        (input, None)
     }
-    input
+}
+
+fn token(i: &str) -> (&str, Option<Token>) {
+    if let (i, Some(ident_res)) = ident(whitespace(i)) {
+        return (i, Some(ident_res));
+    }
+    if let (i, Some(ident_res)) = number(whitespace(i)) {
+        return (i, Some(ident_res));
+    }
+    (i, None)
+}
+
+fn source(mut input: &str) -> Vec<Token> {
+    let mut tokens = vec![];
+    while !input.is_empty() {
+        input = if let (next_input, Some(token)) = token(input) {
+            tokens.push(token);
+            next_input
+        } else {
+            break;
+        }
+    }
+    tokens
 }
 
 fn main() {
-    let source = "123 world";
-    println!(
-        "source: {}, parsed: {:?}",
-        source,
-        ident(whitespace(number(source)))
-    );
+    let input = "123 world";
+    println!("source: {}, parsed: {:?}", input, source(input),);
 }
 
 #[cfg(test)]
@@ -56,12 +85,13 @@ mod test {
 
     #[test]
     fn test_ident() {
-        assert_eq!(ident("Adam1a"), "");
+        assert_eq!(ident("Adam1a"), ("", Some(Token::Ident)));
     }
 
     #[test]
     fn test_number() {
-        assert_eq!(number("123.45 "), " ");
-        assert_eq!(number("123.45 6"), " 6");
+        assert_eq!(number("123.45 "), (" ", Some(Token::Number)));
+        assert_eq!(number("123.45 6"), (" 6", Some(Token::Number)));
+        assert_eq!(number("Adam1a"), ("Adam1a", None));
     }
 }
