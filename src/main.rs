@@ -4,24 +4,30 @@ enum Token {
     Number,
 }
 
+// 1文字先に進む。input[1:]を返す
+fn advance_char(input: &str) -> &str {
+    let mut chars = input.chars();
+    chars.next();
+    chars.as_str()
+}
+
+// 先頭の文字を読む
+fn peek_char(input: &str) -> Option<char> {
+    input.chars().next()
+}
+
 fn whitespace(mut input: &str) -> &str {
-    while matches!(input.chars().next(), Some(' ')) {
-        let mut chars = input.chars();
-        chars.next();
-        input = chars.as_str();
+    while matches!(peek_char(input), Some(' ')) {
+        input = advance_char(input);
     }
     input
 }
 
 fn number(mut input: &str) -> (&str, Option<Token>) {
-    if matches!(
-        input.chars().next(),
-        Some(_x @ ('-' | '+' | '.' | '0'..='9'))
-    ) {
-        while matches!(input.chars().next(), Some(_x @ ('.' | '0'..='9'))) {
-            let mut chars = input.chars();
-            chars.next();
-            input = chars.as_str();
+    if matches!(peek_char(input), Some(_x @ ('-' | '+' | '.' | '0'..='9'))) {
+        input = advance_char(input);
+        while matches!(peek_char(input), Some(_x @ ('.' | '0'..='9'))) {
+            input = advance_char(input);
         }
         (input, Some(Token::Number))
     } else {
@@ -30,14 +36,13 @@ fn number(mut input: &str) -> (&str, Option<Token>) {
 }
 
 fn ident(mut input: &str) -> (&str, Option<Token>) {
-    if matches!(input.chars().next(), Some(_x @ ('a'..='z' | 'A'..='Z'))) {
+    if matches!(peek_char(input), Some(_x @ ('a'..='z' | 'A'..='Z'))) {
+        input = advance_char(input);
         while matches!(
-            input.chars().next(),
+            peek_char(input),
             Some(_x @ ('a'..='z' | 'A'..='Z' | '0'..='9'))
         ) {
-            let mut chars = input.chars();
-            chars.next();
-            input = chars.as_str();
+            input = advance_char(input);
         }
         (input, Some(Token::Ident))
     } else {
