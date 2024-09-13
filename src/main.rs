@@ -2,6 +2,8 @@
 enum Token {
     Ident,
     Number,
+    LParen,
+    RParen,
 }
 
 // 1文字先に進む。input[1:]を返す
@@ -50,11 +52,35 @@ fn ident(mut input: &str) -> (&str, Option<Token>) {
     }
 }
 
+fn lparen(mut input: &str) -> (&str, Option<Token>) {
+    if matches!(peek_char(input), Some('(')) {
+        input = advance_char(input);
+        (input, Some(Token::LParen))
+    } else {
+        (input, None)
+    }
+}
+
+fn rparen(mut input: &str) -> (&str, Option<Token>) {
+    if matches!(peek_char(input), Some(')')) {
+        input = advance_char(input);
+        (input, Some(Token::RParen))
+    } else {
+        (input, None)
+    }
+}
+
 fn token(i: &str) -> (&str, Option<Token>) {
     if let (i, Some(ident_res)) = ident(whitespace(i)) {
         return (i, Some(ident_res));
     }
     if let (i, Some(ident_res)) = number(whitespace(i)) {
+        return (i, Some(ident_res));
+    }
+    if let (i, Some(ident_res)) = lparen(whitespace(i)) {
+        return (i, Some(ident_res));
+    }
+    if let (i, Some(ident_res)) = rparen(whitespace(i)) {
         return (i, Some(ident_res));
     }
     (i, None)
@@ -75,6 +101,10 @@ fn source(mut input: &str) -> Vec<Token> {
 
 fn main() {
     let input = "123 world";
+    println!("source: {}, parsed: {:?}", input, source(input),);
+    let input = "((car cdr) cdr)";
+    println!("source: {}, parsed: {:?}", input, source(input),);
+    let input = "()())))(((())))";
     println!("source: {}, parsed: {:?}", input, source(input),);
 }
 
@@ -98,5 +128,11 @@ mod test {
         assert_eq!(number("123.45 "), (" ", Some(Token::Number)));
         assert_eq!(number("123.45 6"), (" 6", Some(Token::Number)));
         assert_eq!(number("Adam1a"), ("Adam1a", None));
+    }
+
+    #[test]
+    fn test_paren() {
+        assert_eq!(lparen("()"), (")", Some(Token::LParen)));
+        assert_eq!(rparen(")()"), ("()", Some(Token::RParen)));
     }
 }
