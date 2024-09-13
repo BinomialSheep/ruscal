@@ -1,9 +1,15 @@
-#[derive(Debug, PartialEq, Eq)]
-enum Token {
-    Ident,
-    Number,
+#[derive(Debug, PartialEq)]
+enum Token<'src> {
+    Ident(&'src str),
+    Number(f64),
     LParen,
     RParen,
+}
+
+#[derive(Debug, PartialEq)]
+enum TokenTree<'src> {
+    Token(Token<'src>),
+    Tree(Vec<TokenTree<'src>>),
 }
 
 // 1文字先に進む。input[1:]を返す
@@ -25,19 +31,25 @@ fn whitespace(mut input: &str) -> &str {
     input
 }
 
-fn number(mut input: &str) -> (&str, Option<Token>) {
+fn number(mut input: &str) -> Option<(&str, Token)> {
+    let start = input;
     if matches!(peek_char(input), Some(_x @ ('-' | '+' | '.' | '0'..='9'))) {
         input = advance_char(input);
         while matches!(peek_char(input), Some(_x @ ('.' | '0'..='9'))) {
             input = advance_char(input);
         }
-        (input, Some(Token::Number))
+        if let Ok(num) = start[..(start.len() - input.len())].parse::<f64>() {
+            Some((input, Token::Number(num)))
+        } else {
+            None
+        }
     } else {
-        (input, None)
+        None
     }
 }
 
-fn ident(mut input: &str) -> (&str, Option<Token>) {
+fn ident(mut input: &str) -> Option<(&str, Token)> {
+    let start = input;
     if matches!(peek_char(input), Some(_x @ ('a'..='z' | 'A'..='Z'))) {
         input = advance_char(input);
         while matches!(
@@ -46,57 +58,70 @@ fn ident(mut input: &str) -> (&str, Option<Token>) {
         ) {
             input = advance_char(input);
         }
-        (input, Some(Token::Ident))
+        Some((input, Token::Ident(&start[..(start.len() - input.len())])))
     } else {
-        (input, None)
+        None
     }
 }
 
-fn lparen(mut input: &str) -> (&str, Option<Token>) {
+fn lparen(mut input: &str) -> Option<(&str, Token)> {
     if matches!(peek_char(input), Some('(')) {
         input = advance_char(input);
-        (input, Some(Token::LParen))
+        Some((input, Token::LParen))
     } else {
-        (input, None)
+        None
     }
 }
 
-fn rparen(mut input: &str) -> (&str, Option<Token>) {
+fn rparen(mut input: &str) -> Option<(&str, Token)> {
     if matches!(peek_char(input), Some(')')) {
         input = advance_char(input);
-        (input, Some(Token::RParen))
+        Some((input, Token::RParen))
     } else {
-        (input, None)
+        None
     }
 }
 
-fn token(i: &str) -> (&str, Option<Token>) {
-    if let (i, Some(ident_res)) = ident(whitespace(i)) {
-        return (i, Some(ident_res));
+fn token(i: &str) -> Option<(&str, Token)> {
+    if let Some(res) = ident(whitespace(i)) {
+        return Some(res);
     }
-    if let (i, Some(ident_res)) = number(whitespace(i)) {
-        return (i, Some(ident_res));
+    if let Some(res) = number(whitespace(i)) {
+        return Some(res);
     }
-    if let (i, Some(ident_res)) = lparen(whitespace(i)) {
-        return (i, Some(ident_res));
+    if let Some(res) = lparen(whitespace(i)) {
+        return Some(res);
     }
-    if let (i, Some(ident_res)) = rparen(whitespace(i)) {
-        return (i, Some(ident_res));
+    if let Some(res) = rparen(whitespace(i)) {
+        return Some(res);
     }
-    (i, None)
+    None
 }
 
-fn source(mut input: &str) -> Vec<Token> {
+fn source(mut input: &str) -> (&str, TokenTree) {
     let mut tokens = vec![];
     while !input.is_empty() {
-        input = if let (next_input, Some(token)) = token(input) {
-            tokens.push(token);
-            next_input
+        input = if let Some((next_input, token)) = token(input) {
+            match token {
+                Token::LParen => {
+                    // 括弧の中身をTokenTreeとしてtokensに加える
+                    let (next_input, tt) = source(next_input);
+                    tokens.push(tt);
+                    next_input
+                }
+                Token::RParen => {
+                    return (next_input, TokenTree::Tree(tokens));
+                }
+                _ => {
+                    tokens.push(TokenTree::Token(token));
+                    next_input
+                }
+            }
         } else {
             break;
         }
     }
-    tokens
+    (input, TokenTree::Tree(tokens))
 }
 
 fn main() {
@@ -120,19 +145,19 @@ mod test {
 
     #[test]
     fn test_ident() {
-        assert_eq!(ident("Adam1a"), ("", Some(Token::Ident)));
+        assert_eq!(ident("Adam1a"), Some(("", Token::Ident("Adam1a"))));
     }
 
     #[test]
     fn test_number() {
-        assert_eq!(number("123.45 "), (" ", Some(Token::Number)));
-        assert_eq!(number("123.45 6"), (" 6", Some(Token::Number)));
-        assert_eq!(number("Adam1a"), ("Adam1a", None));
+        assert_eq!(number("123.45 "), Some((" ", Token::Number(123.45))));
+        assert_eq!(number("123.45 6"), Some((" 6", Token::Number(123.45))));
+        assert_eq!(number("Adam1a"), None);
     }
 
     #[test]
     fn test_paren() {
-        assert_eq!(lparen("()"), (")", Some(Token::LParen)));
-        assert_eq!(rparen(")()"), ("()", Some(Token::RParen)));
+        assert_eq!(lparen("()"), Some((")", Token::LParen)));
+        assert_eq!(rparen(")()"), Some(("()", Token::RParen)));
     }
 }
